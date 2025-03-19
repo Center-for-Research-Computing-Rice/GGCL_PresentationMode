@@ -19,7 +19,6 @@
             width: 100vw;
             height: 100vh;
             overflow: hidden;
-            
         }
     </style>
 </head>
@@ -27,8 +26,20 @@
     <iframe src="https://glaciercasualtylist.rice.edu/" id="embedded-site" sandbox="allow-same-origin allow-scripts"></iframe>
 
     <script>
-        document.getElementById('embedded-site').addEventListener('load', function() {
-            const iframeDocument = this.contentDocument || this.contentWindow.document;
+        let refreshTimeout;
+        const refreshTime = 150000; // 150000 milliseconds = 2.5 Minutes
+
+        function resetRefreshTimeout() {
+            clearTimeout(refreshTimeout);
+            refreshTimeout = setTimeout(function() {
+                location.reload();
+            }, refreshTime);
+        }
+
+        function setupIframeEventListeners(iframeDocument) {
+            iframeDocument.addEventListener('mousemove', resetRefreshTimeout);
+            iframeDocument.addEventListener('keypress', resetRefreshTimeout);
+            iframeDocument.addEventListener('click', resetRefreshTimeout);
             iframeDocument.addEventListener('click', function(event) {
                 if (event.target.tagName === 'A' && event.target.target === '_blank') {
                     const href = event.target.href;
@@ -38,7 +49,16 @@
                     }
                 }
             });
+        }
+
+        document.getElementById('embedded-site').addEventListener('load', function() {
+            const iframeDocument = this.contentDocument || this.contentWindow.document;
+            setupIframeEventListeners(iframeDocument);
+            resetRefreshTimeout(); // Start the refresh timeout when the iframe loads
         });
+
+        // Start the initial refresh timeout
+        resetRefreshTimeout();
     </script>
 </body>
 </html>
