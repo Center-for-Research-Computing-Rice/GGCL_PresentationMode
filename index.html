@@ -20,45 +20,220 @@
             height: 100vh;
             overflow: hidden;
         }
+
+        /* Add overlay styles */
+        #interaction-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            z-index: 10;
+            pointer-events: none; /* Allow events to pass through to iframe */
+        }
+
+        /* Make debug div smaller and more discreet */
+        #debug-log {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            padding: 5px;
+            z-index: 9999;
+            max-height: 0px;
+            width: 0px;
+            overflow: auto;
+            font-size: 10px;
+            opacity: 0;
+        }
+        
+        /* Add countdown timer styles */
+        #countdown-timer {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 5px 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            border-radius: 3px;
+            font-size: 12px;
+            z-index: 9999;
+            opacity: 0; /* Start hidden */
+            transition: opacity 0.3s ease; /* Smooth fade in/out */
+        }
     </style>
 </head>
 <body>
     <iframe src="https://glaciercasualtylist.rice.edu/" id="embedded-site" sandbox="allow-same-origin allow-scripts"></iframe>
+    
+    <!-- This element will periodically enable pointer-events to detect activity -->
+    <div id="interaction-overlay"></div>
+    
+    <!-- Separate debug log div with ID for better control -->
+    <div id="debug-log">Debug log:</div>
+    
+    <!-- Add countdown timer display -->
+    <div id="countdown-timer">Refresh in: 2:30</div>
 
     <script>
         let refreshTimeout;
         const refreshTime = 150000; // 150000 milliseconds = 2.5 Minutes
+        let lastActivityTime = Date.now();
+        const debugLog = document.getElementById('debug-log');
+        const overlay = document.getElementById('interaction-overlay');
+        const countdownTimer = document.getElementById('countdown-timer');
+        let activityDetected = false;
+        let countdownInterval;
+        let countdownVisibilityTimeout;
+        const inactivityTimeToShow = 10000; // 10 seconds before showing the countdown
 
         function resetRefreshTimeout() {
             clearTimeout(refreshTimeout);
+            lastActivityTime = Date.now();
+            activityDetected = true;
+            log('Refresh timeout reset. Countdown restarted.');
+            
             refreshTimeout = setTimeout(function() {
+                log('Refreshing page due to inactivity');
                 location.reload();
             }, refreshTime);
+            
+            // Reset and start the countdown timer display
+            updateCountdown();
+            
+            // Hide timer and set up visibility timeout
+            hideCountdownTimer();
         }
 
-        function setupIframeEventListeners(iframeDocument) {
-            iframeDocument.addEventListener('mousemove', resetRefreshTimeout);
-            iframeDocument.addEventListener('keypress', resetRefreshTimeout);
-            iframeDocument.addEventListener('click', resetRefreshTimeout);
-            iframeDocument.addEventListener('click', function(event) {
-                if (event.target.tagName === 'A' && event.target.target === '_blank') {
-                    const href = event.target.href;
-                    const url = new URL(href);
-                    if (url.hostname !== 'storymaps.arcgis.com') {
-                        event.preventDefault();
-                    }
+        function log(message) {
+            console.log(message);
+            
+            const logEntry = document.createElement('div');
+            logEntry.textContent = message;
+            debugLog.appendChild(logEntry);
+            
+            // Keep log size manageable
+            if (debugLog.childElementCount > 8) {
+                debugLog.removeChild(debugLog.childNodes[1]);
+            }
+        }
+        
+        // Function to show the countdown timer
+        function showCountdownTimer() {
+            countdownTimer.style.opacity = '1';
+            log('Countdown timer visible');
+        }
+        
+        // Function to hide the countdown timer
+        function hideCountdownTimer() {
+            countdownTimer.style.opacity = '0';
+            log('Countdown timer hidden');
+            
+            // Set timeout to show the timer after 10 seconds of inactivity
+            clearTimeout(countdownVisibilityTimeout);
+            countdownVisibilityTimeout = setTimeout(showCountdownTimer, inactivityTimeToShow);
+        }
+        
+        // Function to update the countdown display
+        function updateCountdown() {
+            // Clear any existing interval
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            // Function to format time remaining
+            function formatTimeRemaining() {
+                const now = Date.now();
+                const timeLeft = Math.max(0, lastActivityTime + refreshTime - now);
+                const minutes = Math.floor(timeLeft / 60000);
+                const seconds = Math.floor((timeLeft % 60000) / 1000);
+                return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            // Update immediately
+            countdownTimer.textContent = `Refresh in: ${formatTimeRemaining()}`;
+            
+            // Then update every second
+            countdownInterval = setInterval(() => {
+                countdownTimer.textContent = `Refresh in: ${formatTimeRemaining()}`;
+            }, 1000);
+        }
+
+        // Temporarily enable pointer events periodically to capture activity
+        // This technique allows us to detect interaction inside the iframe area
+        function setupActivityDetection() {
+            let pointerCheckInterval;
+            
+            function enablePointerEvents() {
+                overlay.style.pointerEvents = 'auto';
+                setTimeout(() => {
+                    overlay.style.pointerEvents = 'none';
+                }, 100); // Enable for 100ms
+            }
+            
+            // Regularly check for activity
+            pointerCheckInterval = setInterval(() => {
+                enablePointerEvents();
+                if (!activityDetected && Date.now() - lastActivityTime > 5000) {
+                    log('No activity detected for 5+ seconds');
                 }
+                activityDetected = false;
+            }, 2000); // Check every 2 seconds
+            
+            // Add event listeners to the overlay with expanded touch events
+            overlay.addEventListener('mousemove', function(event) {
+                log('Activity detected: mouse movement');
+                resetRefreshTimeout();
+            });
+            
+            overlay.addEventListener('click', function(event) {
+                log('Activity detected: click');
+                resetRefreshTimeout();
+            });
+            
+            // Enhanced touch events
+            overlay.addEventListener('touchstart', function(event) {
+                log('Activity detected: touch start');
+                resetRefreshTimeout();
+            });
+            
+            overlay.addEventListener('touchmove', function(event) {
+                log('Activity detected: touch move');
+                resetRefreshTimeout();
+            });
+            
+            overlay.addEventListener('touchend', function(event) {
+                log('Activity detected: touch end');
+                resetRefreshTimeout();
             });
         }
 
-        document.getElementById('embedded-site').addEventListener('load', function() {
-            const iframeDocument = this.contentDocument || this.contentWindow.document;
-            setupIframeEventListeners(iframeDocument);
-            resetRefreshTimeout(); // Start the refresh timeout when the iframe loads
+        // Additional window-level touch events for better coverage
+        window.addEventListener('keydown', function(event) {
+            log('Activity detected: key ' + event.key);
+            resetRefreshTimeout();
+        });
+        
+        window.addEventListener('touchstart', function(event) {
+            log('Activity detected: window touch start');
+            resetRefreshTimeout();
+        });
+        
+        window.addEventListener('touchmove', function(event) {
+            log('Activity detected: window touch move');
+            resetRefreshTimeout();
+        });
+        
+        window.addEventListener('touchend', function(event) {
+            log('Activity detected: window touch end');
+            resetRefreshTimeout();
         });
 
-        // Start the initial refresh timeout
-        resetRefreshTimeout();
+        // Initialize everything
+        log('Page initialized. Countdown started.');
+        setupActivityDetection();
+        resetRefreshTimeout(); // This also initializes the countdown visibility timeout
     </script>
 </body>
 </html>
