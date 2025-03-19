@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embedded Website</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f9;
+        }
+
+        iframe {
+            width: 100vw;
+            height: 100vh;
+            
+        }
+    </style>
+</head>
+<body>
+    <iframe src="https://glaciercasualtylist.rice.edu/" id="embedded-site" sandbox="allow-same-origin allow-scripts"></iframe>
+
+    <script>
+        document.getElementById('embedded-site').addEventListener('load', function() {
+            const iframeDocument = this.contentDocument || this.contentWindow.document;
+            iframeDocument.addEventListener('click', function(event) {
+                if (event.target.tagName === 'A' && event.target.target === '_blank') {
+                    const href = event.target.href;
+                    const url = new URL(href);
+                    if (url.hostname !== 'storymaps.arcgis.com') {
+                        event.preventDefault();
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
